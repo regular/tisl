@@ -1,0 +1,19 @@
+{
+  "name": "tisl",
+  "version": "1.0.0",
+  "description": "a cli tool for version management of Texas Intrument's SimpleLink(tm) SDK. It works much like nvm works for Node version management.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Jan Bölsche <jan@lagomorph.de> (https://regular.codes/)",
+  "license": "ISC",
+  "dependencies": {
+    "human-size": "^1.1.0",
+    "picomatch": "^2.3.1",
+    "pull-paramap": "^1.2.2",
+    "pull-stream": "^3.7.0",
+    "rc": "^1.2.8"
+  }
+}
