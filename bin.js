@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 //jshint -W014
 const os = require('os')
+const fs = require('fs')
+const {join} = require('path')
 const pull = require('pull-stream')
 const human = require('human-size')
 //const git = require('./git')
@@ -11,40 +13,45 @@ const conf = require('rc')('tisl')
 console.log(conf)
 //const repo='/home/regular/dev/flytta/sdks/tigitrepo'
 //const {listVersions} = git(repo)
-if (conf._.length == 3) {
-  const [cmd, uid, dest] = conf._
-  if (cmd == 'install' || cmd == 'i') {
-    install(uid, dest, bail)
-  }
-} else if (conf._.length == 2) {
+
+const cache = join(process.env.HOME, '.tisl', 'cache')
+
+if (conf._.length == 2) {
   const [cmd, uid] = conf._
-  if (cmd == 'files') {
-    files(uid, bail)
-  }
+  if (cmd == 'install' || cmd == 'i') {
+    install(uid, join(cache, 'sdks'), bail)
+  } else usage()
 } else if (conf._.length == 1) {
   const [cmd] = conf._
-  if (cmd=='list') list()
+  if (cmd=='ls-remote') list()
   else usage()
-}
+} else usage()
 
-function install(uid, dest, cb) {
+function install(version, dest, cb) {
   
   const filter = pm([
-    '.metadata/**/*',
-    '*/kernel/**',
-    '*/source/**',
-    '*/examples/**',
-    '**/imports.mak'
+    '.metadata/product.json',
+    'kernel/**',
+    'source/**',
+    'examples/**',
   ])
+  const trim = 1
 
-
-  doRemote((url, cb)=>{
-    download(url, dest, {filter}, cb)
-  }, uid, cb)
+  doRemote(({url, packageVersion}, cb)=>{
+    const d = join(dest, packageVersion)
+    console.log(d)
+    fs.exists(d, there=>{
+      if (there) {
+        console.error(`SDK ${packageVersion} already installed.`)
+        return cb()
+      }
+      download(url, d, {filter, trim}, cb)
+    })
+  }, version, cb)
 }
 
 function files(uid, cb) {
-  doRemote((url, cb)=>{
+  doRemote(({url}, cb)=>{
     entries(url, (err, directory)=>{
       if (err) return cb(err)
       for(const {type, path, uncompressedSize} of directory.files) {
@@ -58,28 +65,25 @@ function files(uid, cb) {
   }, uid, cb)
 }
 
-function doRemote(fn, uid, cb) {
-  const match = pm(uid)
+function doRemote(fn, version, cb) {
   const platform = conf.platform || {win32: 'win', darwin: 'macos', linux: 'linux'}[os.platform]
   if (!platform) return cb(new Error('Unable to detect platform. Use --platform linux|macos|win'))
   let found = false
+  const match = pm(version)
 
   pull(
-    getPackages(),
-    pull.filter(p=>match(p.packagePublicUid)),
+    getVersions(),
+    pull.filter(p=>match(p.packageVersion)),
     pull.asyncMap( (p, cb)=>{
-      console.log()
       console.log(p.packagePublicUid)
-      console.error(p.packagePublicUid)
       console.log('===')
       found = true
       const url = p.downloadUrl[platform]
-      console.error(url)
       if (!url) {
         console.error('No url found -- ignoring')
         return cb(null)
       }
-      fn(url, cb)
+      fn(Object.assign({}, p, {url}), cb)
     }),
     pull.onEnd(err=>{
       if (err) return cb(err)
@@ -122,41 +126,35 @@ function usage() {
   `)
 }
 
-function getVersions(version, cb) {
+function getVersions() {
   const filter = /CC2.*SDK__/
   const exclude = /ACADEMY/
 
-  const versionFilter = version
-    ? pull.filter(p=>p.packageVersion == version)
-    : pull.through()
-
-  pull(
+  return pull(
     getPackages(),
-    versionFilter,
     pull.filter(p=>{
       if (!p.packagePublicUid.match(filter)) return false
       if (p.packagePublicUid.match(exclude)) return false
       return true
-    }),
-    pull.collect( (err, packages)=>{
-      if (err) return cb(err)
-      packages.sort( (a,b) => a.packageVersion > b.packageVersion ? 1:-1)
-      cb(null, packages)
     })
   )
 }
 
-function list(version) {
-  getVersions(version, (err, packages)=>{
-    bail(err)
-    for(const p of packages) {
-      const {packagePublicUid, packageType, packageVersion, name, dependencies} = p
-      const shortname = name.replace(/SimpleLink\s*/, '')
-      let details = [shortname]
-      if (conf.deps) {
-        details = details.concat(dependencies.map(({packagePublicId, versionRange})=>`${packagePublicId}@${versionRange}`))
+function list() {
+  pull(
+    getVersions(),
+    pull.collect( (err, packages)=>{
+      bail(err)
+      packages.sort( (a,b) => a.packageVersion > b.packageVersion ? 1:-1)
+      for(const p of packages) {
+        const {packagePublicUid, packageType, packageVersion, name, dependencies} = p
+        const shortname = name.replace(/SimpleLink\s*/, '')
+        let details = [shortname]
+        if (conf.deps) {
+          details = details.concat(dependencies.map(({packagePublicId, versionRange})=>`${packagePublicId}@${versionRange}`))
+        }
+        console.log(`  ${packageVersion} (${details.join(', ')})`)
       }
-      console.log(`  ${packageVersion} (${details.join(', ')})`)
-    }
-  })
+    })
+  )
 }
