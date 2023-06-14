@@ -11,7 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "human-size": "^1.1.0",
+    "mkdirp": "^3.0.1",
     "picomatch": "^2.3.1",
+    "pull-defer": "^0.2.3",
     "pull-paramap": "^1.2.2",
     "pull-stream": "^3.7.0",
     "rc": "^1.2.8"
