@@ -18,7 +18,7 @@ const conf = require('rc')('tisl')
 //const repo='/home/regular/dev/flytta/sdks/tigitrepo'
 //const {listVersions} = git(repo)
 
-const cache = join(process.env.HOME, '.tisl', 'cache')
+const cache = join(process.env.HOME, '.tisl')
 
 if (conf._.length == 2) {
   const [cmd, uid] = conf._
@@ -140,7 +140,7 @@ function makeSDKEnv(o, packageDir) {
   return Object.entries(o).map( ([k, v])=>{
     k = normalizePacakgeName(k)
     k = k.toUpperCase()
-    return `export ${k}=${packageDir}/${v}`
+    return `export TISL_${k}=${packageDir}/${v}`
   }).join('\n')
 }
 
