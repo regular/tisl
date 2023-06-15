@@ -120,6 +120,7 @@ function install(version, dest, cb) {
     'kernel/**',
     'source/**',
     'examples/**',
+    'imports.mak'
   ])
   const trim = 1
 
