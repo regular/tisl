@@ -2,6 +2,7 @@
 //jshint -W014
 const os = require('os')
 const fs = require('fs')
+const {exec} = require('child_process')
 const {join} = require('path')
 const mkdirp = require('mkdirp')
 const pull = require('pull-stream')
@@ -134,9 +135,11 @@ function install(version, dest, cb) {
       if (err) return cb(err)
       mkdirp.sync(sdkDir)
       //fs.symlink(target, link, cb)
-      const env = makeSDKEnv(resolved, packagesDir)
-      //console.log(env)
-      fs.writeFile(`${link}.env`, env, 'utf-8', cb)
+      const env = makeSDKEnv(packageVersion, resolved, packagesDir, (err, env)=>{
+        if (err) return cb(err)
+        //console.log(env)
+        fs.writeFile(`${link}.env`, env, 'utf-8', cb)
+      })
     })
   }, versionFilter(version), cb)
 }
@@ -147,12 +150,39 @@ function normalizePacakgeName(k) {
   return k
 }
 
-function makeSDKEnv(o, packageDir) {
-  return Object.entries(o).map( ([k, v])=>{
+function makeSDKEnv(version, o, packageDir, cb) {
+  const entries = Object.entries(o).map( ([k,v])=>{
     k = normalizePacakgeName(k)
     k = k.toUpperCase()
-    return `export TISL_${k}=${packageDir}/${v}`
-  }).join('\n')
+    k = 'TISL_' + k
+    v = `"$PACKAGES/${v}"`
+    return [k, v]
+  })
+
+  const generic = [
+    `# environment for SimpleLink SDK ${version}`,
+    `PACKAGES=${packageDir}`
+
+  ].concat(entries.map( ([k, v])=>{
+    return `export ${k}=${v}`
+  })).join('\n')
+
+  const scripts = fs.readdirSync(join(__dirname, 'mkenv'))
+  const script = scripts.find(filename=>{
+    const vpattern = filename.split('-').slice(-1)[0]
+    //console.log(vpattern)
+    return version.startsWith(vpattern)
+  })
+  if (!script) return cb(null, generic)
+
+  const scriptPath = join(__dirname, 'mkenv', script)
+  console.log('Running', scriptPath)
+
+  exec(scriptPath, {env: Object.fromEntries(entries)}, (err, out)=>{
+    if (err) return cb(err)
+    out = [generic, out].join('\n\n')
+    cb(null, out)
+  })
 }
 
 function getPackageUrl(pkg) {
@@ -323,16 +353,19 @@ function listLocal(dest, cb) {
         })
       }),
       pull.map(data=>{
-        const lines = data.split('\n')
+        const lines = data.split('\n').filter(l=>l.startsWith('export '))
         return lines.map(l=>l.split('=')[1])
       }),
       pull.asyncMap( (pkgPaths, cb)=>{
         pull(
           pull.values(pkgPaths),
           // take first path segment after cache path (that's the package name)
+          pull.filter(),
+          pull.map(p=>p.replace(/\$PACKAGES/g, join(cache, 'packages'))),
+          //pull.through(console.log),
+          pull.map(p=>p[0]=='"' ? p.slice(1, p.length-1) : p),
           pull.filter(p=>p.startsWith(cache)),
           pull.map(p=>p.slice(cache.length).split('/')[2]),  // select ../packages/>NAME<
-          pull.through(console.log),
           pull.unique(),
           pull.map(p=>join(cache, 'packages', p)),
           pull.asyncMap( (path, cb)=>{
@@ -364,6 +397,7 @@ function listLocal(dest, cb) {
       pull.collect( (err, sdks)=>{
         if (err) return cb(err)
         sdks.forEach(pkgs=>{
+          //console.log(pkgs)
           const isMain = p=>p.name.toLowerCase() == 'sdk'
           const main = pkgs.find(isMain)
           console.log(main.version)
