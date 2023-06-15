@@ -329,6 +329,12 @@ function listLocal(dest, cb) {
       pull.asyncMap( (pkgPaths, cb)=>{
         pull(
           pull.values(pkgPaths),
+          // take first path segment after cache path (that's the package name)
+          pull.filter(p=>p.startsWith(cache)),
+          pull.map(p=>p.slice(cache.length).split('/')[2]),  // select ../packages/>NAME<
+          pull.through(console.log),
+          pull.unique(),
+          pull.map(p=>join(cache, 'packages', p)),
           pull.asyncMap( (path, cb)=>{
             fs.readFile(join(path, '.metadata', 'product.json'), (err, data)=>{
               if (!err) return cb(null, data)
