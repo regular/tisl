@@ -1,0 +1,9 @@
+# envornment variable template for SDK 7.* 
+cat <<EOF
+export SIMPLELINK_CC13XX_CC26XX_SDK_INSTALL_DIR=$TISL_SDK
+export TICLANG_ARMCOMPILER=$TISL_TIARMCLANG
+export SYSCONFIG_TOOL=$TISL_SYSCONFIG/sysconfig_cli.sh
+export BOARDNAME=LP_CC2652RB
+export TIRTOSNAME=tirtos7
+EOF
+

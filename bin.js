@@ -118,7 +118,9 @@ function install(version, dest, cb) {
     '.metadata/product.json',
     '.metadata/.tirex/package.tirex.json',
     'kernel/**',
+    'kernel/**/.meta/**',
     'source/**',
+    'source/**/.meta/**',
     'examples/**',
     'imports.mak'
   ])
@@ -156,7 +158,7 @@ function makeSDKEnv(version, o, packageDir, cb) {
     k = normalizePacakgeName(k)
     k = k.toUpperCase()
     k = 'TISL_' + k
-    v = `"$PACKAGES/${v}"`
+    v = `$PACKAGES/${v}`
     return [k, v]
   })
 
