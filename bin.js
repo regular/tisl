@@ -12,7 +12,7 @@ const tirex = require('tirex-cli')
 const {download, entries} = tirex
 const getPackages = GetPackages()
 const pm = require('picomatch')
-const conf = require('rc')('tisl')
+const conf = require('rc')('tisl', require(join(__dirname, 'config.json')))
 
 //console.log(conf)
 //const repo='/home/regular/dev/flytta/sdks/tigitrepo'
@@ -79,12 +79,23 @@ function installPackageAndDeps(dest, pubId, versionRange, opts, resolved, cb) {
       const pkg = packages.slice(-1)[0]
       resolved[pkg.packagePublicId] = pkg.packagePublicUid
       console.log(`Installing dependencies of ${pkg.packagePublicUid} ...`)
+      const overrides = opts.applyOverrides && getOverrides(versionRange)
       pull(
         pull.values(pkg.dependencies),
         pull.asyncMap((dep, cb)=>{
+          const publicId = dep.packagePublicId
+          let versionRange = dep.versionRange
+          if (overrides) {
+            const override_deps = overrides.dependencies || {}
+            const ov = override_deps[publicId]
+            if (ov) {
+              console.log(`VERSION OVERRIDE: original=${versionRange} is replaced by ${ov}`)
+              versionRange = ov
+            }
+          }
           // deliberatly not using opts here
           // (dependants are installed unfiltered)o
-          installPackageAndDeps(dest, dep.packagePublicId, dep.versionRange, {trim: 1}, resolved, cb)
+          installPackageAndDeps(dest, publicId, versionRange, {trim: 1}, resolved, cb)
         }),
         pull.collect(err=>{
           if (err) return cb(err)
@@ -119,7 +130,7 @@ function install(version, dest, cb) {
     const link = join(sdkDir, packageVersion)
     console.log(`installing to ${target}`)
     const resolved = {}
-    installPackageAndDeps(packagesDir, pkg.packagePublicId, pkg.packageVersion, {trim, filter}, resolved, err=>{
+    installPackageAndDeps(packagesDir, pkg.packagePublicId, pkg.packageVersion, {trim, filter, applyOverrides: true}, resolved, err=>{
       if (err) return cb(err)
       mkdirp.sync(sdkDir)
       //fs.symlink(target, link, cb)
@@ -264,6 +275,12 @@ function sortByVersion(packages) {
 function listRemote() {
   pull(
     getVersions(),
+    pull.through(p=>{
+      p.dependencies = p.dependencies.reduce( (acc, {packagePublicId, versionRange})=>{
+        acc[packagePublicId] = versionRange
+        return acc
+      }, {})
+    }),
     pull.collect( (err, packages)=>{
       bail(err)
       sortByVersion(packages)
@@ -271,11 +288,25 @@ function listRemote() {
         const {packagePublicUid, packageType, packageVersion, name, dependencies} = p
         const shortname = name.replace(/SimpleLink\s*/, '')
         let details = [shortname]
-        details = details.concat(dependencies.map(({packagePublicId, versionRange})=>`${packagePublicId}@${versionRange}`))
+        const overrides = getOverrides(packageVersion)
+        const override_deps = (overrides && overrides.dependencies) || {}
+        details = details.concat(Object.entries(dependencies).map( ([pid, version])=>{
+          const o = override_deps[pid]
+          return `${pid}@${version}${o?' (forced to ' + o + ' bv override)' : ''}`
+        }))
         console.log(`  ${packageVersion} (${details.join(', ')})`)
       }
     })
   )
+}
+
+function getOverrides(version) {
+  if (!conf.overrides) return
+  for (const [k, v] of Object.entries(conf.overrides)) {
+    if (pm(k)(version)) {
+      return v
+    }
+  }
 }
 
 function listLocal(dest, cb) {

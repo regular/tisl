@@ -1,0 +1,10 @@
+{
+  "overrides": {
+    "5.30.00*": {
+      "dependencies": {
+        "arm.ti": "20.2",
+        "xdctools": "3.62.01.15"
+      }
+    }
+  }
+}
