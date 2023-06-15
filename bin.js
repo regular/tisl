@@ -8,7 +8,7 @@ const pull = require('pull-stream')
 const defer = require('pull-defer')
 const human = require('human-size')
 //const git = require('./git')
-const tirex = require('../tirex')
+const tirex = require('tirex-cli')
 const {download, entries} = tirex
 const getPackages = GetPackages()
 const pm = require('picomatch')
@@ -124,7 +124,7 @@ function install(version, dest, cb) {
       mkdirp.sync(sdkDir)
       //fs.symlink(target, link, cb)
       const env = makeSDKEnv(resolved, packagesDir)
-      console.log(env)
+      //console.log(env)
       fs.writeFile(`${link}.env`, env, 'utf-8', cb)
     })
   }, versionFilter(version), cb)
@@ -142,21 +142,6 @@ function makeSDKEnv(o, packageDir) {
     k = k.toUpperCase()
     return `export ${k}=${packageDir}/${v}`
   }).join('\n')
-}
-
-function files(uid, cb) {
-  doRemote(({url}, cb)=>{
-    entries(url, (err, directory)=>{
-      if (err) return cb(err)
-      for(const {type, path, uncompressedSize} of directory.files) {
-        const p = path.split('/').slice(1).join('/')
-        const t = type[0]
-        const s = uncompressedSize
-        console.log(t, p, t=='F' ? s : '')
-      }
-      cb(null)
-    })
-  }, uid, cb)
 }
 
 function getPackageUrl(pkg) {
@@ -204,21 +189,54 @@ function bail(err) {
 
 function usage() {
   console.log(`
+tisl -- version manager for TI SimpleLink SDK
+
   tisl ls-remote
-  tisl install VERSION
+  tisl install <version>
+  tisl ls
     
-  tisl ls-remote [--deps]
+  tisl ls-remote
 
     list all installable SDK versions.
     
-    --deps  show dependencies
+  tisl install <version>
 
-  tisl install VERSION
-
-    Install the specified SDK version and it's dependencies
+    Install the specified SDK version and its dependencies
     
-    VERSION may be a glob expression
-  `)
+    <version> may be a glob expression
+
+  tisl ls
+    
+    list installed SDK versions
+
+  EXAMPLES
+
+    tisl ls-remote
+
+    example output:
+
+      5.30.00.03 (CC2640R2 SDK, arm.gnu@7.2, arm.ti@18.12, xdctools@3.51.03.28)
+      5.30.01.01 (CC13xx CC26xx SDK, arm.gnu@9.2, arm.ti@20.2, sysconfig@1.10.0, ti_cgt_tiarmclang@1.3.0, xdctools@3.62.01.15)
+      5.40.00.40 (CC13xx CC26xx SDK, arm.gnu@9.2, arm.ti@20.2, sysconfig@1.10.0, ti_cgt_tiarmclang@1.3.0, xdctools@3.62.01.15)
+
+    tisl ls
+
+    example output:
+
+      5.30.00.03
+        armgnu@7.2.1 armti@18.12.5 xdctools@3.51.03.28
+        supported devices: CC2640R2FRGZ CC2640R2FRHB CC2640R2FRSM
+
+      6.40.00.13
+        armgnu@9.2.1 sysconfig@1.15.0 tiarmclang@2.01.02.00 xdctools@3.62.01.15
+        supported devices: CC[12][36][0-9][^0].*
+
+      7.10.00.98
+        armgnu@9.2.1 sysconfig@1.15.0 tiarmclang@1.03.00.00 xdctools@3.62.01.15
+        supported devices: CC[12][36][0-9][^0].*
+
+
+`)
 }
 
 function getVersions() {
@@ -253,9 +271,7 @@ function listRemote() {
         const {packagePublicUid, packageType, packageVersion, name, dependencies} = p
         const shortname = name.replace(/SimpleLink\s*/, '')
         let details = [shortname]
-        if (conf.deps) {
-          details = details.concat(dependencies.map(({packagePublicId, versionRange})=>`${packagePublicId}@${versionRange}`))
-        }
+        details = details.concat(dependencies.map(({packagePublicId, versionRange})=>`${packagePublicId}@${versionRange}`))
         console.log(`  ${packageVersion} (${details.join(', ')})`)
       }
     })
