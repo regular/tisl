@@ -164,6 +164,7 @@ function makeSDKEnv(version, o, packageDir, cb) {
 
   const generic = [
     `# environment for SimpleLink SDK ${version}`,
+    `export TISL_SDKVERSION=${version}`,
     `PACKAGES=${packageDir}`
 
   ].concat(entries.map( ([k, v])=>{
