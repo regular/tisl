@@ -25,6 +25,15 @@ if (conf._.length == 2) {
   const [cmd, uid] = conf._
   if (cmd == 'install' || cmd == 'i') {
     install(uid, cache, bail)
+  } else if (cmd == 'env') {
+    getEnv(uid, (err, env)=>{
+      if (err) {
+        console.error(err.message)
+        process.exit(1)
+      } else {
+        console.log(env)
+      }
+    })
   } else usage()
 } else if (conf._.length == 1) {
   const [cmd] = conf._
@@ -43,6 +52,29 @@ function inVersionRange(range, v) {
   if (range == v) return true
   if (v.startsWith(range)) return true
   return false // TODO
+}
+
+function getEnv(version, cb) {
+  version = `${version}` // might be a number otherwise
+  const sdkDir = join(cache, 'sdks')
+  fs.readdir(sdkDir, (err, files)=>{
+    if (err) return cb(new Error(`Error reading ${sdkDir}: ${err.message}`))
+    pull(
+      pull.values(files),
+      pull.filter(fn=>fn.endsWith('.env')),
+      pull.filter(fn=>inVersionRange(version, fn)),
+      pull.collect( (err, candidates)=>{
+        if (err) return cb(err)
+        if (candidates.length>1) {
+          return cb(new Error(`Not a unique pattern. Could be: ${candidates.join(', ')}`))
+        }
+        if (!candidates.length) {
+          return cb(new Error(`Version not found: ${version}`))
+        }
+        fs.readFile(join(sdkDir, candidates[0]), 'utf-8', cb)
+      })
+    )
+  })
 }
 
 function downloadPackageIfNeeded(dest, pkg, opts, cb) {
@@ -237,22 +269,40 @@ function usage() {
 tisl -- version manager for TI SimpleLink SDK
 
   tisl ls-remote
-  tisl install <version>
+  tisl install VERSION
   tisl ls
+  tisl ebv VERSION
     
   tisl ls-remote
 
     list all installable SDK versions.
     
-  tisl install <version>
+  tisl install VERSION
 
     Install the specified SDK version and its dependencies
     
-    <version> may be a glob expression
+    VERSION may be a glob expression
 
   tisl ls
     
     list installed SDK versions
+
+  tisl env VERSION
+
+    output shell environment varuables to stdout.
+    
+    Use
+
+      source <(tisl env VERSION)
+
+    to initialize the build environment for a given SDK version.
+
+    VERSION may be a unique prefix of an installed SDK version, i.e. if you  have just one installed
+    SDK wiht a major version of 5,
+
+      source <(tisi env 5)
+
+    is sufficient to switch to its build environment.
 
   EXAMPLES
 
