@@ -6,4 +6,5 @@ export XDC_INSTALL_DIR=$TISL_XDCTOOLS
 export XDCTOOLS_JAVA_HOME=$TISL_XDCTOOLS/jre
 export BOARDNAME=CC2640R2_LAUNCHXL
 export TIRTOSNAME=tirtos
+export _JAVA_OPTIONS=-Xint # java jit is dysfunctional on newer versions of macos
 EOF
